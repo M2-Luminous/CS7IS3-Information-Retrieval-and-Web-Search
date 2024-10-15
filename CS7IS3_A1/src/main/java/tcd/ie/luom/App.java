@@ -15,6 +15,7 @@ import org.apache.lucene.store.Directory;
 import java.io.*;
 import java.nio.file.Paths;
 import java.util.Scanner;
+import java.util.HashMap;
 
 public class App {
 
@@ -136,7 +137,14 @@ public class App {
             searcher.setSimilarity(getSimilarity(simType));
 
             Analyzer analyzer = analyzerName.equals("sd") ? new StandardAnalyzer() : new EnglishAnalyzer();
-            MultiFieldQueryParser queryParser = new MultiFieldQueryParser(new String[]{"title", "author", "bib", "content"}, analyzer);
+
+	    HashMap<String, Float> boostedScores = new HashMap<>();
+    	    boostedScores.put("title", 0.65f);
+    	    boostedScores.put("author", 0.04f);
+    	    boostedScores.put("bib", 0.02f);
+     	    boostedScores.put("content", 0.35f);
+
+            MultiFieldQueryParser queryParser = new MultiFieldQueryParser(new String[]{"title", "author", "bib", "content"}, analyzer, boostedScores);
 
             System.out.println("Querying...");
             try (BufferedReader queryReader = new BufferedReader(new FileReader(CRAN_QRY));
@@ -149,7 +157,10 @@ public class App {
                     queryNumber++;
                     Query query = queryParser.parse(QueryParser.escape(queryStr));
                     ScoreDoc[] hits = searcher.search(query, 50).scoreDocs;
-                    writeSearchResult(queryWriter, queryNumber, hits, searcher);
+		    for (int i = 0; i < hits.length; i++) {
+           	        queryWriter.write(queryNumber + " Q0 " + searcher.doc(hits[i].doc).get("id") + " " + i + " " + hits[i].score + " STANDARD");
+                    queryWriter.newLine();
+        }
                 }
 
                 System.out.println("Querying finished, total queries: " + queryNumber);
@@ -170,14 +181,6 @@ public class App {
             }
         }
         return null;
-    }
-
-    public static void writeSearchResult(BufferedWriter writer, int queryNumber, ScoreDoc[] hits, IndexSearcher searcher) throws IOException {
-        for (int i = 0; i < hits.length; i++) {
-            writer.write(queryNumber + " Q0 " + searcher.doc(hits[i].doc).get("id") + " " + i +
-                    " " + hits[i].score + " STANDARD");
-            writer.newLine();
-        }
     }
 
     public static String getSimilarityName(int simType) {
